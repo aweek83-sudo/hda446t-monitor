@@ -1,0 +1,861 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0f1419">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<title>HDA446T 모니터</title>
+<style>
+:root{
+  --bg:#0f1419; --panel:#161d25; --panel2:#1c2530; --line:#273342; --text:#e6edf3; --mute:#8b9bb0; --grid:#222c38; --zero:#3a4a5c;
+  --roll:#ff9f43; --pitch:#2ec4b6; --az:#a78bfa; --acc:#58a6ff; --ok:#3fb950; --warn:#d29922; --bad:#f85149; --pri:#1f6feb;
+  --mono:"Roboto Mono",Consolas,"D2Coding",monospace; --valFs:44px;
+}
+:root.light{
+  --bg:#f4f6f8; --panel:#ffffff; --panel2:#eef1f5; --line:#d5dbe3; --text:#111827; --mute:#5b6676; --grid:#e3e8ee; --zero:#b8c2cf;
+  --roll:#d9480f; --pitch:#0b8a7c; --az:#6d4fd8; --acc:#1c64d8; --ok:#1a7f37; --warn:#9a6700; --bad:#cf222e;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font-family:"Pretendard","Noto Sans KR","Malgun Gothic",sans-serif;font-size:15px;overscroll-behavior:none}
+button,input,select{font:inherit;color:inherit}
+.app{display:flex;flex-direction:column;height:100dvh;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)}
+header{display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--panel);border-bottom:1px solid var(--line);flex-wrap:wrap}
+header h1{font-size:16px;margin:0 4px 0 2px;white-space:nowrap}
+.pill{display:flex;align-items:center;gap:6px;padding:6px 10px;border:1px solid var(--line);border-radius:999px;background:var(--panel2);font-size:13px;white-space:nowrap}
+.dot{width:9px;height:9px;border-radius:50%;background:#6b7280;flex:none}
+.dot.ok{background:var(--ok)} .dot.warn{background:var(--warn)} .dot.bad{background:var(--bad)}
+.sp{flex:1}
+.btn{min-height:44px;padding:0 14px;border-radius:10px;border:1px solid var(--line);background:var(--panel2);cursor:pointer;white-space:nowrap;touch-action:manipulation}
+.btn:active{transform:scale(.97)}
+.btn.pri{background:var(--pri);border-color:var(--pri);color:#fff}
+.btn.rec{border-color:var(--bad);color:var(--bad)}
+.btn.rec.on{background:var(--bad);color:#fff}
+.btn.danger{border-color:var(--bad);color:var(--bad)}
+.btn:disabled{opacity:.4}
+.btn.sm{min-height:36px;padding:0 10px;font-size:13.5px}
+main{flex:1;display:flex;flex-direction:column;gap:8px;padding:8px;min-height:0}
+.cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr)) minmax(0,.9fr);gap:8px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:8px 12px;position:relative;overflow:hidden;min-width:0}
+.card::before{content:"";position:absolute;left:0;top:0;bottom:0;width:5px;background:var(--c)}
+.card .k{font-size:12.5px;color:var(--mute);display:flex;justify-content:space-between;gap:6px}
+.card .v{font-family:var(--mono);font-size:var(--valFs);font-weight:700;line-height:1.15;white-space:nowrap;letter-spacing:-1px}
+.card .v small{font-size:calc(var(--valFs)*.45);color:var(--mute);font-weight:400}
+.card .s{font-size:12px;color:var(--mute);font-family:var(--mono)}
+.card.alarm{border-color:var(--bad);box-shadow:inset 0 0 0 2px var(--bad)} .card.alarm .v{color:var(--bad)}
+.card.stale .v{opacity:.4}
+.mini{display:grid;grid-template-columns:auto 1fr;gap:2px 8px;font-size:13px;margin-top:4px}
+.mini span:nth-child(odd){color:var(--mute)} .mini b{font-family:var(--mono);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bar{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.bar .lbl{color:var(--mute);font-size:13px}
+.tabs{display:flex;gap:4px;background:var(--panel2);border-radius:10px;padding:3px}
+.tab{padding:8px 16px;border-radius:8px;cursor:pointer;font-size:14px;touch-action:manipulation}
+.tab.on{background:var(--pri);color:#fff}
+.view{flex:1;min-height:180px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:8px;display:flex;flex-direction:column;gap:6px}
+.view.hidden{display:none}
+.vhead{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.cv{flex:1;min-height:0;position:relative}
+.cv canvas{position:absolute;inset:0;width:100%;height:100%;touch-action:none}
+.att{flex:1;display:grid;grid-template-columns:1fr 1fr;gap:8px;min-height:0}
+.att>div{position:relative;min-height:0}
+.att canvas{position:absolute;inset:0;width:100%;height:100%}
+.data{flex:1;display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:8px;min-height:0}
+.col{min-width:0}
+.col .vhead{overflow:hidden}
+.toast{position:fixed;left:50%;bottom:calc(16px + env(safe-area-inset-bottom));transform:translateX(-50%);max-width:min(92vw,640px);z-index:30;background:#23303d;color:#fff;border:1px solid #3a4a5c;border-radius:12px;padding:10px 16px;font-size:14px;box-shadow:0 6px 24px rgba(0,0,0,.35);transition:opacity .25s}
+.toast.e{background:#4a1d1f;border-color:var(--bad)} .toast.off{opacity:0;pointer-events:none}
+.scroll{overflow:auto;min-height:0;border:1px solid var(--line);border-radius:8px}
+.tbl{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:12.5px}
+.tbl th{position:sticky;top:0;background:var(--panel2);text-align:left;padding:6px;color:var(--mute);font-family:inherit;white-space:nowrap}
+.tbl td{padding:5px 6px;border-top:1px solid var(--line);white-space:nowrap}
+.tag{display:inline-block;padding:0 6px;border-radius:4px;font-size:11.5px;font-family:sans-serif}
+.t-ang{color:var(--roll);border:1px solid var(--roll)} .t-acc{color:var(--acc);border:1px solid var(--acc)} .t-gyr{color:var(--az);border:1px solid var(--az)}
+.t-rsp{color:var(--ok);border:1px solid var(--ok)} .t-oth{color:var(--mute);border:1px solid var(--line)} .t-tx{color:#e3559e;border:1px solid #e3559e}
+.idchip{text-decoration:underline dotted;cursor:pointer}
+.log{font-family:var(--mono);font-size:12px;padding:6px;white-space:pre-wrap}
+.log .e{color:var(--bad)} .log .w{color:var(--warn)} .log .o{color:var(--ok)}
+.col{display:flex;flex-direction:column;gap:6px;min-height:0}
+.banner{background:#2b2111;border:1px solid #5c4413;color:#f2cc60;border-radius:10px;padding:8px 12px;font-size:13.5px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+:root.light .banner{background:#fff8e6;color:#7a5200;border-color:#e8c878}
+.hidden{display:none!important}
+/* 설정 서랍 */
+.scrim{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:20}
+.drawer{position:fixed;top:0;right:0;bottom:0;width:min(440px,94vw);background:var(--panel);border-left:1px solid var(--line);z-index:21;display:flex;flex-direction:column;transform:translateX(100%);transition:transform .2s}
+.drawer.open{transform:none}
+.dhead{display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid var(--line)}
+.dbody{overflow:auto;padding:10px 12px 40px}
+.sec{border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin-bottom:10px;background:var(--panel2)}
+.sec h3{margin:0 0 8px;font-size:14px}
+.row{display:flex;gap:8px;align-items:center;margin:8px 0;flex-wrap:wrap}
+.row label.l{min-width:84px;color:var(--mute);font-size:13.5px}
+.row input[type=text],.row input[type=number],.row select{flex:1;min-width:0;min-height:42px;border-radius:8px;border:1px solid var(--line);background:var(--panel);padding:0 10px}
+.row input[type=range]{flex:1}
+.hex{font-family:var(--mono)}
+.hint{color:var(--mute);font-size:12.5px;line-height:1.5;margin:4px 0}
+.chk{display:flex;align-items:center;gap:6px;min-height:40px}
+.chk input{width:22px;height:22px}
+details summary{cursor:pointer;color:var(--mute);font-size:13.5px;padding:6px 0}
+@media (orientation:portrait),(max-width:760px){
+  .cards{grid-template-columns:1fr 1fr}
+  .att{grid-template-columns:1fr;grid-template-rows:1fr 1fr}
+  .data{grid-template-columns:minmax(0,1fr);grid-template-rows:1.3fr 1fr}
+  header h1{display:none}
+}
+</style>
+</head>
+<body>
+<div class="app">
+<header>
+  <h1>HDA446T 모니터</h1>
+  <button class="btn pri" id="bConn">블루투스 연결</button>
+  <div class="pill"><span class="dot" id="dBle"></span><span id="pBle">미연결</span></div>
+  <div class="pill"><span class="dot" id="dBus"></span><span id="pBus">버스 -</span></div>
+  <div class="pill"><span class="dot" id="dData"></span><span id="pData">0.0 Hz</span></div>
+  <span class="sp"></span>
+  <button class="btn rec" id="bRec">● 기록</button>
+  <button class="btn" id="bMenu" aria-label="설정">☰ 설정</button>
+</header>
+
+<main>
+  <div class="banner hidden" id="banner"></div>
+
+  <div class="cards">
+    <div class="card" id="cRoll" style="--c:var(--roll)"><div class="k"><span>ROLL (X)</span><span id="tRoll"></span></div><div class="v"><span id="vRoll">--.--</span><small>°</small></div><div class="s" id="sRoll">센서값 -</div></div>
+    <div class="card" id="cPitch" style="--c:var(--pitch)"><div class="k"><span>PITCH (Y)</span><span id="tPitch"></span></div><div class="v"><span id="vPitch">--.--</span><small>°</small></div><div class="s" id="sPitch">센서값 -</div></div>
+    <div class="card" id="cAz" style="--c:var(--az)"><div class="k"><span>AZIMUTH (Z)</span><span id="tAz">상대각</span></div><div class="v"><span id="vAz">--.--</span><small>°</small></div><div class="s" id="sAz">센서값 -</div></div>
+    <div class="card" style="--c:#6b7a8f"><div class="k"><span>센서 상태</span><span id="tAge"></span></div>
+      <div class="mini">
+        <span>온도</span><b id="vTemp">-</b>
+        <span>가속도 g</span><b id="vAcc">꺼짐</b>
+        <span>각속도 °/s</span><b id="vGyro">꺼짐</b>
+        <span>기록</span><b id="vRec">대기</b>
+      </div>
+    </div>
+  </div>
+
+  <div class="bar">
+    <span class="lbl">영점</span>
+    <button class="btn sm" data-tare="r">X 0</button>
+    <button class="btn sm" data-tare="p">Y 0</button>
+    <button class="btn sm" data-tare="a">Z 0</button>
+    <button class="btn sm pri" id="bTareAll">모두 0</button>
+    <button class="btn sm" id="bTareClr">해제</button>
+    <span class="sp"></span>
+    <div class="tabs" id="tabs">
+      <span class="tab on" data-v="vGraph">그래프</span>
+      <span class="tab" data-v="vAtt">자세</span>
+      <span class="tab" data-v="vData">데이터</span>
+    </div>
+  </div>
+
+  <section class="view" id="vGraph">
+    <div class="vhead">
+      <div class="tabs" id="gtabs"><span class="tab on" data-g="angle">각도</span><span class="tab" data-g="acc">가속도</span><span class="tab" data-g="gyro">각속도</span></div>
+      <span class="sp"></span>
+      <select id="win" class="btn sm"><option value="10">10초</option><option value="30" selected>30초</option><option value="60">1분</option><option value="300">5분</option><option value="0">전체</option></select>
+      <button class="btn sm" id="bPause">일시정지</button>
+    </div>
+    <div class="cv"><canvas id="cvChart"></canvas></div>
+  </section>
+
+  <section class="view hidden" id="vAtt">
+    <div class="att"><div><canvas id="cvHorizon"></canvas></div><div><canvas id="cvCompass"></canvas></div></div>
+  </section>
+
+  <section class="view hidden" id="vData">
+    <div class="data">
+      <div class="col">
+        <div class="vhead"><b style="font-size:14px">원시 CAN 프레임</b><span class="sp"></span><label class="chk" style="min-height:0"><input type="checkbox" id="rawOnly">센서 ID만</label><button class="btn sm" id="bRawPause">정지</button></div>
+        <div class="scroll" style="flex:1"><table class="tbl"><thead><tr><th>시간</th><th>방향</th><th>ID</th><th>DLC</th><th>데이터</th><th>해석</th></tr></thead><tbody id="rawBody"></tbody></table></div>
+      </div>
+      <div class="col">
+        <div class="vhead"><b style="font-size:14px">수신 ID</b><span class="sp"></span><span class="hint" id="cnt" style="margin:0"></span></div>
+        <div class="scroll" style="max-height:30%"><table class="tbl"><thead><tr><th>ID</th><th>형식</th><th>수신</th><th>주기</th></tr></thead><tbody id="idBody"></tbody></table></div>
+        <b style="font-size:14px">이벤트</b>
+        <div class="scroll log" id="log" style="flex:1"></div>
+      </div>
+    </div>
+  </section>
+</main>
+</div>
+
+<div class="toast off" id="toast"></div>
+<!-- 설정 서랍 -->
+<div class="scrim hidden" id="scrim"></div>
+<aside class="drawer" id="drawer">
+  <div class="dhead"><b style="font-size:16px">설정</b><span class="sp"></span><button class="btn" id="bClose">닫기</button></div>
+  <div class="dbody">
+    <div class="sec">
+      <h3>연결</h3>
+      <div class="row"><label class="l">게이트웨이</label><span id="gwInfo" class="hint" style="margin:0">미연결</span></div>
+      <div class="row"><label class="l">CAN 속도</label>
+        <select id="selBr"><option value="1000">1 Mbit/s</option><option value="500">500 kbit/s</option><option value="250">250 kbit/s</option><option value="125" selected>125 kbit/s (센서 기본)</option><option value="100">100 kbit/s</option><option value="50">50 kbit/s</option></select>
+        <button class="btn sm" id="bBr">적용</button></div>
+      <p class="hint">게이트웨이의 CAN 통신속도예요. 센서 속도와 같아야 하고, 바꾸면 게이트웨이에 저장돼요.</p>
+      <div class="row"><button class="btn" id="bDemo" style="flex:1">데모 실행 (장비 없이 화면 시험)</button></div>
+    </div>
+
+    <div class="sec">
+      <h3>기록 · 저장</h3>
+      <div class="row"><span id="recInfo" class="hint" style="margin:0">기록 없음</span></div>
+      <div class="row"><button class="btn pri" id="bSave" style="flex:1" disabled>CSV 저장</button><button class="btn" id="bShare" style="flex:1" disabled>CSV 공유</button><button class="btn danger" id="bRecClr" disabled>지우기</button></div>
+      <p class="hint">저장하면 태블릿의 ‘다운로드’ 폴더에 들어가요. ‘공유’는 메일·메신저·드라이브로 바로 보낼 때 써요.</p>
+    </div>
+
+    <div class="sec">
+      <h3>센서 명령</h3>
+      <div class="row"><label class="chk"><input type="checkbox" id="mA" checked>각도</label><label class="chk"><input type="checkbox" id="mB">가속도</label><label class="chk"><input type="checkbox" id="mC">자이로</label><span class="sp"></span><button class="btn sm" id="bMask">출력 적용</button></div>
+      <div class="row"><label class="l">출력 주기</label><input type="number" id="period" value="100" min="50" max="1000" step="10"><span class="hint" style="margin:0">ms</span><button class="btn sm" id="bPeriod">적용</button></div>
+      <div class="row"><button class="btn" id="bAz0" style="flex:1">센서에 방위각 0점 명령 보내기</button></div>
+      <p class="hint">측정 중 Z축 0점은 메인 화면의 ‘Z 0’ 버튼을 쓰세요(항상 동작). 이 버튼은 센서 펌웨어가 지원할 때만 동작해요.</p>
+      <details><summary>고급: 노드 ID · 센서 통신속도 변경 (재전원 필요)</summary>
+        <div class="row"><label class="l">새 노드</label><input type="text" id="newNode" class="hex" value="0x05"><button class="btn sm danger" id="bNode">변경</button></div>
+        <div class="row"><label class="l">새 속도</label><select id="newBaud"><option value="0">1000k</option><option value="1">500k</option><option value="2">250k</option><option value="3" selected>125k</option><option value="4">100k</option></select><button class="btn sm danger" id="bBaud">변경</button></div>
+      </details>
+      <details><summary>임의 CAN 프레임 송신</summary>
+        <div class="row"><label class="l">ID</label><input type="text" id="txId" class="hex" value="0x605"><label class="chk"><input type="checkbox" id="txExt">29비트</label></div>
+        <div class="row"><label class="l">데이터</label><input type="text" id="txData" class="hex" value="40 30 10 00 01 00 00 00"></div>
+        <div class="row"><button class="btn" id="bTx" style="flex:1">송신</button></div>
+      </details>
+    </div>
+
+    <div class="sec">
+      <h3>표시</h3>
+      <div class="row"><label class="l">숫자 크기</label><input type="range" id="valFs" min="26" max="96" step="2" value="44"><span id="valFsT" class="hint" style="margin:0;min-width:40px">44</span></div>
+      <div class="row"><label class="l">경고 Roll</label><input type="number" id="alR" value="15" step="0.5"><span class="hint" style="margin:0">°</span></div>
+      <div class="row"><label class="l">경고 Pitch</label><input type="number" id="alP" value="10" step="0.5"><span class="hint" style="margin:0">°</span></div>
+      <p class="hint">절대값이 경고값을 넘으면 카드가 빨갛게 바뀌어요. 0 = 사용 안 함.</p>
+      <div class="row"><label class="chk"><input type="checkbox" id="wake" checked>측정 중 화면 꺼짐 방지</label></div>
+      <div class="row"><label class="chk"><input type="checkbox" id="light">밝은 화면(야외용)</label></div>
+      <p class="hint" id="tareInfo">영점 보정 없음</p>
+    </div>
+
+    <div class="sec">
+      <h3>센서 해석</h3>
+      <div class="row"><label class="l">노드 ID</label><input type="text" id="node" class="hex" value="0x05"></div>
+      <div class="row"><label class="l">ID 형식</label><select id="idMode"><option value="any">자동 (11/29비트)</option><option value="std">CAN 2.0A (11비트)</option><option value="ext">CAN 2.0B (29비트)</option></select></div>
+      <div class="row"><label class="l">데이터 ID</label><input type="text" id="dataId" class="hex" placeholder="자동: 0x585"></div>
+      <p class="hint">데이터·응답 ID = 0x580+노드, 명령 ID = 0x600+노드. 각도 = int16(리틀엔디언)×0.01°, 8번째 바이트 하위 2비트로 각도/가속도/자이로를 구분해요. ‘데이터’ 탭의 수신 ID를 누르면 데이터 ID로 지정돼요.</p>
+    </div>
+
+    <div class="sec">
+      <h3>파일 불러오기</h3>
+      <input type="file" id="fileIn" accept=".trc,.csv,.txt" style="width:100%">
+      <p class="hint">PCAN-View 로그(.trc)나 PC 브리지 원시 기록(.csv)을 각도로 변환해 그래프·CSV로 볼 수 있어요.</p>
+    </div>
+
+    <div class="sec">
+      <h3>앱 정보</h3>
+      <p class="hint" id="appInfo">HDA446T 태블릿 모니터 v1.0.0</p>
+      <p class="hint">Chrome 메뉴(⋮) → ‘홈 화면에 추가’(또는 ‘앱 설치’)를 하면 인터넷 없이 앱처럼 실행돼요.</p>
+    </div>
+  </div>
+</aside>
+
+<script>
+"use strict";
+const APP_VERSION = "1.0.0";
+// ======================================================================
+// 공통 유틸
+// ======================================================================
+const $ = id => document.getElementById(id);
+const hex2 = n => n.toString(16).toUpperCase().padStart(2, "0");
+const fmtId = (id, ext) => "0x" + id.toString(16).toUpperCase().padStart(ext ? 8 : 3, "0");
+const hexBytes = s => { const c = String(s).replace(/0x/gi, "").replace(/[^0-9a-fA-F]/g, ""); if (c.length % 2) return null; const o = []; for (let i = 0; i < c.length; i += 2) o.push(parseInt(c.substr(i, 2), 16)); return o; };
+const parseNum = s => { s = String(s).trim(); if (!s) return NaN; return /^0x/i.test(s) || /[a-f]/i.test(s) ? parseInt(s.replace(/^0x/i, ""), 16) : parseInt(s, 10); };
+const i16 = (lo, hi) => { const v = lo | (hi << 8); return v & 0x8000 ? v - 0x10000 : v; };
+const i8 = b => (b & 0x80 ? b - 0x100 : b);
+const fmtSigned = (v, d = 2) => (v >= 0 ? "+" : "−") + Math.abs(v).toFixed(d);
+const p2 = n => String(n).padStart(2, "0");
+const hms = d => `${p2(d.getHours())}:${p2(d.getMinutes())}:${p2(d.getSeconds())}`;
+const tstr = ms => { const d = new Date(ms); return hms(d) + "." + String(d.getMilliseconds()).padStart(3, "0"); };
+const store = {
+  get(k, d) { try { const v = localStorage.getItem("hda446t-tab." + k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } },
+  set(k, v) { try { localStorage.setItem("hda446t-tab." + k, JSON.stringify(v)); } catch (e) {} }
+};
+function logEv(msg, cls = "") {
+  const el = $("log"), line = document.createElement("div");
+  line.className = cls; line.textContent = tstr(Date.now()) + "  " + msg;
+  el.prepend(line); while (el.childNodes.length > 200) el.lastChild.remove();
+}
+let toastTimer = 0;
+function toast(msg, cls = "") {
+  const t = $("toast"); t.textContent = msg; t.className = "toast" + (cls === "e" ? " e" : "");
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.add("off"), cls === "e" ? 6000 : 3000);
+}
+
+// ======================================================================
+// HDA446T-CAN 디코더 (RION CAN2.0A/B)
+//   데이터 ID 0x580+노드, B1-2 X, B3-4 Y, B5-6 Z (int16 LE), B7 온도(각도), B8 Flag(ddddccaa)
+// ======================================================================
+const cfg = {
+  node: 5, idMode: "any", dataId: null,
+  get rxId() { return this.dataId != null ? this.dataId : 0x580 + this.node; },
+  get cmdId() { return 0x600 + this.node; }
+};
+const pendingCmds = [];
+function decode(fr) {
+  if (fr.dir === "TX") return { kind: "tx" };
+  if (fr.id !== cfg.rxId) return { kind: "other" };
+  if (cfg.idMode === "std" && fr.ext) return { kind: "other" };
+  if (cfg.idMode === "ext" && !fr.ext) return { kind: "other" };
+  const d = fr.d;
+  for (let i = pendingCmds.length - 1; i >= 0; i--) {
+    const c = pendingCmds[i];
+    if (fr.ms - c.ms > 3000) { pendingCmds.splice(i, 1); continue; }
+    if (d.length >= 4 && d[0] === c.d[0] && d[1] === c.d[1] && d[2] === c.d[2] && d[3] === c.d[3]) { pendingCmds.splice(i, 1); return { kind: "resp", cmd: c.name }; }
+  }
+  if (d.length < 8) return { kind: "short" };
+  const flag = d[7], type = flag & 3, mount = (flag >> 4) & 15;
+  const x = i16(d[0], d[1]), y = i16(d[2], d[3]), z = i16(d[4], d[5]);
+  if (type === 0) return { kind: "angle", roll: x * 0.01, pitch: y * 0.01, az: z * 0.01, temp: i8(d[6]), mount };
+  if (type === 1) return { kind: "acc", x: x * 0.001, y: y * 0.001, z: z * 0.001 };
+  if (type === 2) return { kind: "gyro", x: x * 0.01, y: y * 0.01, z: z * 0.01 };
+  return { kind: "unknown" };
+}
+function describe(r) {
+  switch (r.kind) {
+    case "angle": return `<span class="tag t-ang">각도</span> R ${fmtSigned(r.roll)} P ${fmtSigned(r.pitch)} Az ${fmtSigned(r.az)} ${r.temp}℃`;
+    case "acc": return `<span class="tag t-acc">가속도</span> ${r.x.toFixed(3)} ${r.y.toFixed(3)} ${r.z.toFixed(3)} g`;
+    case "gyro": return `<span class="tag t-gyr">자이로</span> ${r.x.toFixed(2)} ${r.y.toFixed(2)} ${r.z.toFixed(2)} °/s`;
+    case "resp": return `<span class="tag t-rsp">응답</span> ${r.cmd}`;
+    case "tx": return `<span class="tag t-tx">송신</span>`;
+    case "short": return `<span class="tag t-oth">길이 부족</span>`;
+    case "unknown": return `<span class="tag t-oth">알 수 없음</span>`;
+    default: return "";
+  }
+}
+
+// ======================================================================
+// 상태
+// ======================================================================
+const emptyLatest = () => ({ roll: NaN, pitch: NaN, az: NaN, temp: NaN, acc: null, gyro: null, angleMs: 0 });
+const st = {
+  latest: emptyLatest(),
+  tare: store.get("tare", { r: null, p: null, a: null }),
+  angleTimes: [], rawPaused: false, chartPaused: false, group: "angle",
+  idStats: new Map(), rx: 0,
+  rec: { on: false, rows: [] },
+  mode: "live"
+};
+const wrap180 = v => { v = ((v + 180) % 360 + 360) % 360 - 180; return v === -180 ? 180 : v; };
+const tR = v => st.tare.r == null ? v : v - st.tare.r;
+const tP = v => st.tare.p == null ? v : v - st.tare.p;
+const tA = v => st.tare.a == null ? v : wrap180(v - st.tare.a);
+const MAXPTS = 200000;
+const series = {
+  angle: { names: ["Roll", "Pitch", "Azimuth"], colors: ["--roll", "--pitch", "--az"], unit: "°", t: [], v: [[], [], []] },
+  acc: { names: ["X", "Y", "Z"], colors: ["--roll", "--pitch", "--acc"], unit: "g", t: [], v: [[], [], []] },
+  gyro: { names: ["X", "Y", "Z"], colors: ["--roll", "--pitch", "--az"], unit: "°/s", t: [], v: [[], [], []] }
+};
+function pushSeries(g, t, a, b, c) {
+  const s = series[g]; s.t.push(t); s.v[0].push(a); s.v[1].push(b); s.v[2].push(c);
+  if (s.t.length > MAXPTS) { const n = s.t.length - MAXPTS; s.t.splice(0, n); s.v.forEach(v => v.splice(0, n)); }
+}
+function clearSeries() { for (const g in series) { series[g].t = []; series[g].v = [[], [], []]; } }
+
+const rawRows = [];
+function ingest(fr) {
+  st.rx++;
+  if (fr.dir !== "TX") {
+    const key = (fr.ext ? "X" : "S") + fr.id;
+    let s = st.idStats.get(key);
+    if (!s) { s = { id: fr.id, ext: fr.ext, n: 0, last: 0, dt: 0 }; st.idStats.set(key, s); }
+    if (s.last) s.dt = s.dt ? s.dt * 0.8 + (fr.ms - s.last) * 0.2 : fr.ms - s.last;
+    s.last = fr.ms; s.n++;
+  }
+  const r = decode(fr), L = st.latest;
+  if (r.kind === "angle") {
+    L.roll = r.roll; L.pitch = r.pitch; L.az = r.az; L.temp = r.temp; L.angleMs = fr.ms;
+    st.angleTimes.push(fr.ms); while (st.angleTimes.length && fr.ms - st.angleTimes[0] > 2000) st.angleTimes.shift();
+    const rr = tR(r.roll), pp = tP(r.pitch), aa = tA(r.az);
+    pushSeries("angle", fr.ms, rr, pp, aa);
+    if (st.rec.on) st.rec.rows.push([fr.ms, r.roll, r.pitch, r.az, r.temp, rr, pp, aa,
+      L.acc ? L.acc[0] : "", L.acc ? L.acc[1] : "", L.acc ? L.acc[2] : "", L.gyro ? L.gyro[0] : "", L.gyro ? L.gyro[1] : "", L.gyro ? L.gyro[2] : ""]);
+  } else if (r.kind === "acc") { L.acc = [r.x, r.y, r.z]; pushSeries("acc", fr.ms, r.x, r.y, r.z); }
+  else if (r.kind === "gyro") { L.gyro = [r.x, r.y, r.z]; pushSeries("gyro", fr.ms, r.x, r.y, r.z); }
+  else if (r.kind === "resp") { logEv("센서 응답: " + r.cmd, "o"); toast("센서 응답 확인: " + r.cmd); }
+  if (!st.rawPaused && st.mode === "live" && (!$("rawOnly").checked || fr.id === cfg.rxId || fr.id === cfg.cmdId)) {
+    rawRows.push({ fr, r }); if (rawRows.length > 300) rawRows.shift();
+  }
+}
+
+// ======================================================================
+// 블루투스 (Web Bluetooth) — 게이트웨이 펌웨어와 같은 규격
+// ======================================================================
+const UUID_SVC = "6e400001-b5a3-f393-e0a9-e50e24dcca9e";
+const UUID_RX = "6e400002-b5a3-f393-e0a9-e50e24dcca9e";   // 쓰기 (태블릿 → 게이트웨이)
+const UUID_TX = "6e400003-b5a3-f393-e0a9-e50e24dcca9e";   // 알림 (게이트웨이 → 태블릿)
+const REC_LEN = { 1: 19, 2: 18, 3: 6, 4: 3 };
+const TWAI_STATE = { 0: "정지", 1: "정상", 2: "BUS-OFF", 3: "복구 중", 255: "CAN 정지" };
+const CMD_NAME = { 0x10: "CAN 송신", 0x11: "통신속도 변경", 0x12: "정보 요청" };
+const ble = { device: null, rx: null, tx: null, wanted: false, connected: false, retry: 0, offset: null, lastMs: 0, wq: Promise.resolve(), lastStat: null, busErr0: null };
+
+function bleUI() {
+  const c = ble.connected, w = ble.wanted && !c;
+  setPill("dBle", "pBle", c ? "ok" : w ? "warn" : "", c ? (ble.device ? ble.device.name : "연결됨") : w ? "재연결 중…" : "미연결");
+  $("bConn").textContent = c || w ? "연결 끊기" : "블루투스 연결";
+  $("bConn").classList.toggle("pri", !(c || w));
+  if (!c) setPill("dBus", "pBus", "", "버스 -");
+  if (demoTimer) { setPill("dBle", "pBle", "warn", "데모 실행 중"); }
+}
+function setPill(dot, txt, cls, t) { $(dot).className = "dot " + cls; $(txt).textContent = t; }
+
+async function bleConnect() {
+  if (!navigator.bluetooth) {
+    const why = !window.isSecureContext ? "블루투스는 HTTPS 주소(또는 설치한 앱)에서만 쓸 수 있어요." : "이 브라우저는 웹 블루투스를 지원하지 않아요. 안드로이드 Chrome으로 열어 주세요.";
+    toast(why, "e"); logEv(why, "e"); return;
+  }
+  stopDemo();
+  try {
+    const dev = await navigator.bluetooth.requestDevice({ filters: [{ namePrefix: "HDA446T-GW" }, { services: [UUID_SVC] }], optionalServices: [UUID_SVC] });
+    if (ble.device && ble.device !== dev) ble.device.removeEventListener("gattserverdisconnected", onBleDisconnect);
+    ble.device = dev; ble.wanted = true;
+    dev.addEventListener("gattserverdisconnected", onBleDisconnect);
+    await bleOpen();
+  } catch (e) {
+    if (e && e.name === "NotFoundError") logEv("장치 선택이 취소됐어요.");
+    else { logEv("연결 실패: " + (e && e.message || e), "e"); toast("연결 실패: " + (e && e.message || e), "e"); }
+    bleUI();
+  }
+}
+async function bleOpen() {
+  bleUI();
+  const server = await ble.device.gatt.connect();
+  const svc = await server.getPrimaryService(UUID_SVC);
+  ble.rx = await svc.getCharacteristic(UUID_RX);
+  ble.tx = await svc.getCharacteristic(UUID_TX);
+  ble.tx.addEventListener("characteristicvaluechanged", onBleData);
+  await ble.tx.startNotifications();
+  ble.connected = true; ble.retry = 0; ble.offset = null; ble.wq = Promise.resolve();
+  setMode("live"); bleUI(); wakeUpdate();
+  logEv("게이트웨이 연결됨: " + ble.device.name, "o"); toast("연결됨: " + ble.device.name);
+  bleWrite([0x12]);
+}
+function onBleDisconnect() {
+  const was = ble.connected;
+  ble.connected = false; ble.rx = ble.tx = null; bleUI(); wakeUpdate();
+  if (!ble.wanted) return;
+  if (was) { logEv("연결이 끊겼어요. 다시 연결합니다.", "w"); toast("블루투스 연결이 끊겨 다시 연결 중이에요.", "e"); }
+  const delay = Math.min(10000, 1500 * (1 + ble.retry++));
+  setTimeout(async () => {
+    if (!ble.wanted || ble.connected || !ble.device) return;
+    try { await bleOpen(); } catch (e) { logEv("재연결 실패: " + (e && e.message || e), "w"); onBleDisconnect(); }
+  }, delay);
+}
+function bleDisconnect() {
+  ble.wanted = false;
+  if (ble.device && ble.device.gatt.connected) ble.device.gatt.disconnect();
+  ble.connected = false; bleUI(); wakeUpdate(); logEv("연결을 끊었어요.");
+}
+function bleWrite(bytes) {
+  if (!ble.connected || !ble.rx) return Promise.reject(new Error("미연결"));
+  const data = new Uint8Array(bytes);
+  ble.wq = ble.wq.catch(() => {}).then(() => (ble.rx.writeValueWithResponse ? ble.rx.writeValueWithResponse(data) : ble.rx.writeValue(data)));
+  ble.wq.catch(e => logEv("BLE 쓰기 실패: " + (e && e.message || e), "e"));
+  return ble.wq;
+}
+// 게이트웨이 시각(ms) → 태블릿 시각으로 변환 (최초/재부팅/큰 차이 시 재동기화)
+function gwToWall(gwMs) {
+  const now = Date.now();
+  if (ble.offset == null || Math.abs(gwMs + ble.offset - now) > 2000) ble.offset = now - gwMs;
+  let t = gwMs + ble.offset; if (t < ble.lastMs - 1000) { ble.offset = now - gwMs; t = now; }
+  ble.lastMs = t; return t;
+}
+function onBleData(ev) {
+  const dv = ev.target.value; let o = 0;
+  while (o < dv.byteLength) {
+    const type = dv.getUint8(o), len = REC_LEN[type];
+    if (!len || o + len > dv.byteLength) { logEv(`알 수 없는 데이터(유형 0x${hex2(type)})`, "w"); break; }
+    if (type === 1) {
+      const flags = dv.getUint8(o + 1), id = dv.getUint32(o + 2, true), dlc = Math.min(8, dv.getUint8(o + 6));
+      const d = []; if (!(flags & 2)) for (let i = 0; i < dlc; i++) d.push(dv.getUint8(o + 7 + i));
+      if (st.mode === "live") ingest({ ms: gwToWall(dv.getUint32(o + 15, true)), id, ext: !!(flags & 1), d, dir: "RX" });
+    } else if (type === 2) {
+      const s = { state: dv.getUint8(o + 1), kbps: dv.getUint16(o + 2, true), rx: dv.getUint32(o + 4, true), tx: dv.getUint32(o + 8, true), busErr: dv.getUint32(o + 12, true), tec: dv.getUint8(o + 16), rec: dv.getUint8(o + 17) };
+      onStatus(s);
+    } else if (type === 3) {
+      const v = `${dv.getUint8(o + 1)}.${dv.getUint8(o + 2)}.${dv.getUint8(o + 3)}`, kbps = dv.getUint16(o + 4, true);
+      $("gwInfo").textContent = `${ble.device ? ble.device.name : ""} · 펌웨어 v${v} · CAN ${kbps} kbit/s`;
+      if ([...$("selBr").options].some(x => +x.value === kbps)) $("selBr").value = String(kbps);
+    } else if (type === 4) {
+      const cmd = dv.getUint8(o + 1), ok = dv.getUint8(o + 2) === 1;
+      if (!ok) { logEv(`게이트웨이: ${CMD_NAME[cmd] || "명령"} 실패`, "e"); toast(`${CMD_NAME[cmd] || "명령"} 실패 — CAN 배선·통신속도를 확인하세요.`, "e"); }
+      else if (cmd === 0x11) { logEv("게이트웨이 CAN 통신속도 변경 완료", "o"); toast("CAN 통신속도를 변경했어요."); }
+    }
+    o += len;
+  }
+}
+function onStatus(s) {
+  let cls = "ok", txt = "버스 정상";
+  if (s.state === 255 || s.state === 0) { cls = "bad"; txt = "CAN 정지"; }
+  else if (s.state === 2 || s.state === 3) { cls = "bad"; txt = "BUS-OFF"; }
+  else if (s.tec >= 128 || s.rec >= 128) { cls = "warn"; txt = "버스 오류 많음"; }
+  else if (s.tec >= 96 || s.rec >= 96) { cls = "warn"; txt = "버스 경고"; }
+  else if (ble.lastStat && s.rx === ble.lastStat.rx) { cls = "warn"; txt = "수신 없음"; }
+  setPill("dBus", "pBus", cls, `${txt} · ${s.kbps}k`);
+  $("cnt").textContent = `RX ${s.rx} · TX ${s.tx} · 버스오류 ${s.busErr}`;
+  if (ble.lastStat && ble.lastStat.state !== s.state) logEv("CAN 상태: " + (TWAI_STATE[s.state] || s.state), s.state === 1 ? "o" : "w");
+  ble.lastStat = s;
+}
+$("bConn").onclick = () => (ble.connected || ble.wanted) ? bleDisconnect() : bleConnect();
+$("bBr").onclick = () => {
+  const k = +$("selBr").value;
+  if (!ble.connected) { toast("먼저 게이트웨이에 연결하세요.", "e"); return; }
+  if (!confirm(`게이트웨이 CAN 통신속도를 ${k} kbit/s 로 바꿀까요?\n센서 통신속도와 같아야 데이터가 들어와요.`)) return;
+  bleWrite([0x11, k & 0xFF, k >> 8]);
+};
+
+// ======================================================================
+// 센서 명령 (0x600 + 노드)
+// ======================================================================
+function sendFrame(id, ext, bytes, name) {
+  const fr = { ms: Date.now(), id, ext, d: bytes, dir: "TX" };
+  if (name) pendingCmds.push({ ms: Date.now(), d: bytes, name });
+  if (demoTimer) { demoSensor.write(id, bytes); ingest(fr); logEv(`송신(데모) ${fmtId(id, ext)} ${bytes.map(hex2).join(" ")}`); return; }
+  if (!ble.connected) { toast("게이트웨이에 연결되어 있지 않아요.", "e"); return; }
+  const pkt = [0x10, ext ? 1 : 0, id & 0xFF, (id >> 8) & 0xFF, (id >> 16) & 0xFF, (id >>> 24) & 0xFF, bytes.length, ...bytes];
+  bleWrite(pkt).then(() => { ingest(fr); logEv(`송신 ${fmtId(id, ext)} ${bytes.map(hex2).join(" ")}` + (name ? `  (${name})` : "")); }, () => {});
+}
+const cmdExt = () => cfg.idMode === "ext";
+$("bMask").onclick = () => {
+  const m = ($("mA").checked ? 1 : 0) | ($("mB").checked ? 2 : 0) | ($("mC").checked ? 4 : 0);
+  if (!m) { toast("최소 한 개는 선택하세요."); return; }
+  sendFrame(cfg.cmdId, cmdExt(), [0x40, 0x30, 0x10, 0x00, m, 0, 0, 0], "출력 프레임 0x0" + m);
+};
+$("bPeriod").onclick = () => {
+  const p = Math.round(+$("period").value);
+  if (!(p >= 50 && p <= 1000)) { toast("출력 주기는 50~1000 ms 예요."); return; }
+  sendFrame(cfg.cmdId, cmdExt(), [0x22, 0x00, 0x22, 0x00, p & 0xFF, p >> 8, 0, 0], `출력 주기 ${p} ms`);
+};
+$("bAz0").onclick = () => sendFrame(cfg.cmdId, cmdExt(), [0x40, 0x10, 0x10, 0x00, 0x10, 0x10, 0x10, 0x10], "방위각 0점");
+$("bNode").onclick = () => {
+  const n = parseNum($("newNode").value);
+  if (!(n >= 1 && n <= 0x7F)) { toast("노드 ID 범위는 0x01~0x7F 예요."); return; }
+  if (!confirm(`센서 노드 ID 를 0x${hex2(n)} 로 바꿀까요?\n재전원 후 적용되고, ‘센서 해석’의 노드 ID 도 바꿔야 해요.`)) return;
+  sendFrame(cfg.cmdId, cmdExt(), [0x40, 0x10, 0x10, 0x00, n, 0, 0, 0], `노드 ID 0x${hex2(n)}`);
+};
+$("bBaud").onclick = () => {
+  const c = +$("newBaud").value, names = ["1000k", "500k", "250k", "125k", "100k"];
+  if (!confirm(`센서 통신속도를 ${names[c]} 로 바꿀까요?\n재전원 후 적용되고, 게이트웨이 CAN 속도도 같이 바꿔야 해요.`)) return;
+  sendFrame(cfg.cmdId, cmdExt(), [0x40, 0x20, 0x10, 0x00, c, 0, 0, 0], `센서 통신속도 ${names[c]}`);
+};
+$("bTx").onclick = () => {
+  const id = parseNum($("txId").value), ext = $("txExt").checked, d = hexBytes($("txData").value);
+  if (isNaN(id) || id < 0 || id > (ext ? 0x1FFFFFFF : 0x7FF)) { toast("ID 가 올바르지 않아요."); return; }
+  if (!d || d.length > 8) { toast("데이터는 0~8바이트 16진수예요."); return; }
+  sendFrame(id, ext, d, id === cfg.cmdId && d.length >= 4 ? "임의 명령" : null);
+};
+
+// ======================================================================
+// 해석 / 표시 설정
+// ======================================================================
+function applyCfg() {
+  const n = parseNum($("node").value); cfg.node = n >= 1 && n <= 0x7F ? n : 5;
+  const di = $("dataId").value.trim(); cfg.dataId = di ? parseNum(di) : null; if (cfg.dataId != null && isNaN(cfg.dataId)) cfg.dataId = null;
+  cfg.idMode = $("idMode").value; $("dataId").placeholder = `자동: ${fmtId(0x580 + cfg.node)}`;
+  store.set("cfg", { node: $("node").value, dataId: $("dataId").value, idMode: cfg.idMode });
+}
+(() => { const c = store.get("cfg", null); if (c) { $("node").value = c.node; $("dataId").value = c.dataId; $("idMode").value = c.idMode; } applyCfg(); })();
+["node", "dataId", "idMode"].forEach(id => $(id).addEventListener("change", applyCfg));
+
+function tareUI() {
+  const T = st.tare, parts = [];
+  if (T.r != null) parts.push(`X ${fmtSigned(T.r)}°`); if (T.p != null) parts.push(`Y ${fmtSigned(T.p)}°`); if (T.a != null) parts.push(`Z ${fmtSigned(T.a)}°`);
+  $("tareInfo").textContent = parts.length ? `영점 보정 기준값: ${parts.join(", ")}` : "영점 보정 없음";
+  $("tRoll").textContent = T.r != null ? "영점보정" : ""; $("tPitch").textContent = T.p != null ? "영점보정" : ""; $("tAz").textContent = T.a != null ? "영점보정" : "상대각";
+}
+function setTare(axes) {
+  const L = st.latest; if (isNaN(L.roll)) { toast("아직 각도 데이터가 없어요."); return; }
+  const src = { r: L.roll, p: L.pitch, a: L.az }, nm = { r: "X", p: "Y", a: "Z" };
+  for (const k of axes) st.tare[k] = src[k];
+  store.set("tare", st.tare); tareUI(); logEv("영점 보정: " + axes.map(k => `${nm[k]}=${fmtSigned(src[k])}°`).join(", "), "o");
+}
+document.querySelectorAll("[data-tare]").forEach(b => b.onclick = () => setTare([b.dataset.tare]));
+$("bTareAll").onclick = () => setTare(["r", "p", "a"]);
+$("bTareClr").onclick = () => { st.tare = { r: null, p: null, a: null }; store.set("tare", st.tare); tareUI(); logEv("영점 보정 해제"); };
+tareUI();
+["alR", "alP"].forEach(id => { $(id).value = store.get(id, $(id).value); $(id).addEventListener("change", () => store.set(id, $(id).value)); });
+function applyFs() { const v = +$("valFs").value; document.documentElement.style.setProperty("--valFs", v + "px"); $("valFsT").textContent = v; store.set("valFs", v); }
+$("valFs").value = store.get("valFs", 44); $("valFs").oninput = applyFs; applyFs();
+function applyTheme() { document.documentElement.classList.toggle("light", $("light").checked); store.set("light", $("light").checked); document.querySelector('meta[name=theme-color]').content = $("light").checked ? "#ffffff" : "#0f1419"; }
+$("light").checked = store.get("light", false); $("light").onchange = applyTheme; applyTheme();
+$("wake").checked = store.get("wake", true); $("wake").onchange = () => { store.set("wake", $("wake").checked); wakeUpdate(); };
+
+// 화면 꺼짐 방지
+let wakeLock = null;
+async function wakeUpdate() {
+  const want = $("wake").checked && (ble.connected || !!demoTimer) && document.visibilityState === "visible";
+  try {
+    if (want && !wakeLock && navigator.wakeLock) { wakeLock = await navigator.wakeLock.request("screen"); wakeLock.addEventListener("release", () => { wakeLock = null; }); }
+    else if (!want && wakeLock) { await wakeLock.release(); wakeLock = null; }
+  } catch (e) { wakeLock = null; }
+}
+document.addEventListener("visibilitychange", wakeUpdate);
+
+// ======================================================================
+// 기록 / CSV
+// ======================================================================
+function recUI() {
+  const r = st.rec, n = r.rows.length, dur = n ? (r.rows[n - 1][0] - r.rows[0][0]) / 1000 : 0;
+  $("bRec").textContent = r.on ? "■ 기록 중지" : "● 기록"; $("bRec").classList.toggle("on", r.on);
+  const t = n ? `${n.toLocaleString()}행 · ${dur.toFixed(1)}초` : "기록 없음";
+  $("vRec").textContent = r.on ? "기록 중 " + t : (n ? t : "대기");
+  $("recInfo").textContent = t + (r.on ? " (기록 중)" : "");
+  $("bSave").disabled = $("bShare").disabled = !n; $("bRecClr").disabled = !n || r.on;
+}
+$("bRec").onclick = () => {
+  if (st.mode === "file") setMode("live");
+  st.rec.on = !st.rec.on; logEv(st.rec.on ? "기록 시작" : `기록 중지 (${st.rec.rows.length}행)`, st.rec.on ? "o" : ""); recUI();
+};
+$("bRecClr").onclick = () => { if (confirm("기록된 데이터를 지울까요?")) { st.rec.rows = []; recUI(); } };
+function csvTime(ms) { const d = new Date(ms); return `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())} ${hms(d)}.${String(d.getMilliseconds()).padStart(3, "0")}`; }
+function buildCsv(rows) {
+  const t0 = rows[0][0], f = (v, n) => (v === "" || v == null || isNaN(v)) ? "" : (+v).toFixed(n), tv = v => v == null ? "0" : v.toFixed(2);
+  const lines = ["﻿# HDA446T-CAN 기록(태블릿), 데이터ID " + fmtId(cfg.rxId) + ", 영점 기준값 X " + tv(st.tare.r) + " Y " + tv(st.tare.p) + " Z " + tv(st.tare.a),
+    "time,elapsed_s,roll_deg,pitch_deg,azimuth_deg,temp_C,roll_tared_deg,pitch_tared_deg,azimuth_tared_deg,acc_x_g,acc_y_g,acc_z_g,gyro_x_dps,gyro_y_dps,gyro_z_dps"];
+  for (const r of rows) lines.push([csvTime(r[0]), ((r[0] - t0) / 1000).toFixed(3), f(r[1], 2), f(r[2], 2), f(r[3], 2), r[4], f(r[5], 2), f(r[6], 2), f(r[7], 2), f(r[8], 3), f(r[9], 3), f(r[10], 3), f(r[11], 2), f(r[12], 2), f(r[13], 2)].join(","));
+  return lines.join("\r\n");
+}
+function csvName() { const d = new Date(st.rec.rows[0][0]); return `HDA446T_${d.getFullYear()}${p2(d.getMonth() + 1)}${p2(d.getDate())}_${p2(d.getHours())}${p2(d.getMinutes())}${p2(d.getSeconds())}.csv`; }
+$("bSave").onclick = () => {
+  const blob = new Blob([buildCsv(st.rec.rows)], { type: "text/csv;charset=utf-8" });
+  const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = csvName(); document.body.appendChild(a); a.click();
+  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 2000); logEv("CSV 저장: " + a.download, "o"); toast("다운로드 폴더에 저장했어요: " + a.download);
+};
+$("bShare").onclick = async () => {
+  const file = new File([buildCsv(st.rec.rows)], csvName(), { type: "text/csv" });
+  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+    try { await navigator.share({ files: [file], title: file.name }); } catch (e) { if (e.name !== "AbortError") toast("공유 실패: " + e.message, "e"); }
+  } else toast("이 기기는 파일 공유를 지원하지 않아요. ‘CSV 저장’을 쓰세요.", "e");
+};
+recUI();
+
+// ======================================================================
+// 데모 (장비 없이) — 실제 프로토콜 바이트를 만들어 같은 해석 과정을 거침
+// ======================================================================
+let demoTimer = null;
+const demoSensor = {
+  mask: 1, period: 100, t0: 0, azOff: 0, next: 0, pend: [],
+  enc(v, s) { let n = Math.round(v / s); n = Math.max(-32768, Math.min(32767, n)) & 0xFFFF; return [n & 0xFF, n >> 8]; },
+  frames(now) {
+    const out = this.pend.splice(0);
+    while (this.next <= now) {
+      const t = (this.next - this.t0) / 1000;
+      const roll = 12 * Math.sin(2 * Math.PI * t / 8) + 0.3 * Math.sin(2 * Math.PI * t * 3.1);
+      const pitch = -6 * Math.sin(2 * Math.PI * t / 11 + 1) + 0.2 * Math.sin(2 * Math.PI * t * 2.3);
+      const az = ((15 * t - this.azOff + 180) % 360 + 360) % 360 - 180;
+      const mk = (a, b, c, s, b7, fl) => ({ ms: this.next, id: 0x580 + cfg.node, ext: false, dir: "RX", d: [...this.enc(a, s), ...this.enc(b, s), ...this.enc(c, s), b7 & 0xFF, fl] });
+      if (this.mask & 1) out.push(mk(roll, pitch, az, 0.01, 25, 0));
+      if (this.mask & 2) { const r = roll * Math.PI / 180, p = pitch * Math.PI / 180; out.push(mk(-Math.sin(p), Math.sin(r) * Math.cos(p), Math.cos(r) * Math.cos(p), 0.001, 0, 1)); }
+      if (this.mask & 4) out.push(mk(12 * 2 * Math.PI / 8 * Math.cos(2 * Math.PI * t / 8), -6 * 2 * Math.PI / 11 * Math.cos(2 * Math.PI * t / 11 + 1), 15, 0.01, 0, 2));
+      this.next += this.period; if (now - this.next > 2000) this.next = now;
+    }
+    return out;
+  },
+  write(id, b) {
+    if (id !== 0x600 + cfg.node || b.length < 8) return;
+    const echo = () => this.pend.push({ ms: Date.now(), id: 0x580 + cfg.node, ext: false, dir: "RX", d: b.slice() });
+    if (b[0] === 0x40 && b[1] === 0x30) { this.mask = b[4] & 7; echo(); }
+    else if (b[0] === 0x22 && b[2] === 0x22) { const p = b[4] | (b[5] << 8); if (p >= 50 && p <= 1000) this.period = p; echo(); }
+    else if (b[0] === 0x40 && b[1] === 0x10 && b[4] === 0x10 && b[5] === 0x10) { this.azOff = ((Date.now() - this.t0) / 1000 * 15) % 360; echo(); }
+    else if (b[0] === 0x40) echo();
+  }
+};
+function startDemo() {
+  if (ble.connected || ble.wanted) bleDisconnect();
+  setMode("live");
+  const now = Date.now(); Object.assign(demoSensor, { mask: 1, period: 100, t0: now, next: now, azOff: 0, pend: [] });
+  demoTimer = setInterval(() => { const fs = demoSensor.frames(Date.now()); if (st.mode === "live") fs.forEach(ingest); }, 20);
+  logEv("데모 시작", "o"); $("bDemo").textContent = "데모 중지"; bleUI(); wakeUpdate();
+}
+function stopDemo() { if (!demoTimer) return; clearInterval(demoTimer); demoTimer = null; logEv("데모 중지"); $("bDemo").textContent = "데모 실행 (장비 없이 화면 시험)"; bleUI(); wakeUpdate(); }
+$("bDemo").onclick = () => { demoTimer ? stopDemo() : startDemo(); closeDrawer(); };
+
+// ======================================================================
+// 파일 불러오기 (.trc / 브리지 CSV)
+// ======================================================================
+function parseTrc(text) {
+  const out = []; let startMs = 0; const m = text.match(/;\$STARTTIME=([\d.]+)/); if (m) startMs = (parseFloat(m[1]) - 25569) * 86400000;
+  for (let line of text.split(/\r?\n/)) {
+    line = line.trim(); if (!line || line[0] === ";") continue;
+    const tk = line.split(/\s+/), k = tk.findIndex(x => x === "Rx" || x === "Tx"); if (k < 0) continue;
+    const off = parseFloat(tk[1]); if (isNaN(off)) continue;
+    let idTok, rest;
+    if (/^[0-9A-Fa-f]{3,8}$/.test(tk[k + 1] || "") && !/^\d$/.test(tk[k + 1])) { idTok = tk[k + 1]; rest = tk.slice(k + 2); }
+    else { idTok = tk[k - 1]; rest = tk.slice(k + 1); if (rest[0] === "-") rest = rest.slice(1); }
+    if (!/^[0-9A-Fa-f]+$/.test(idTok || "")) continue;
+    const dlc = parseInt(rest[0], 10); if (isNaN(dlc) || dlc > 8 || rest[1] === "RTR") continue;
+    const d = rest.slice(1, 1 + dlc).map(x => parseInt(x, 16)); if (d.length !== dlc || d.some(isNaN)) continue;
+    out.push({ ms: startMs + off, id: parseInt(idTok, 16), ext: idTok.length > 4, d, dir: tk[k] === "Tx" ? "TX" : "RX" });
+  }
+  return out;
+}
+function parseBridgeCsv(text) {
+  const out = [];
+  for (const line of text.split(/\r?\n/).slice(1)) {
+    const c = line.split(","); if (c.length < 7) continue;
+    const ms = new Date(c[0].replace(" ", "T")).getTime(); if (isNaN(ms)) continue;
+    out.push({ ms, id: parseInt(c[3], 16), ext: c[4] === "1", d: hexBytes(c[6]) || [], dir: c[2] === "TX" ? "TX" : "RX" });
+  }
+  return out;
+}
+function setMode(m) {
+  if (st.mode === m) return; st.mode = m;
+  if (m === "live") { clearSeries(); st.rec.rows = []; st.idStats.clear(); st.latest = emptyLatest(); $("win").value = "30"; $("banner").classList.add("hidden"); recUI(); }
+}
+$("fileIn").onchange = async ev => {
+  const f = ev.target.files[0]; if (!f) return; const text = await f.text(); ev.target.value = "";
+  const frames = /host_time,hw_time_us/.test(text.slice(0, 200)) ? parseBridgeCsv(text) : parseTrc(text);
+  if (!frames.length) { toast("파일에서 CAN 프레임을 찾지 못했어요.", "e"); return; }
+  stopDemo(); st.rec.on = false;
+  st.mode = "file"; clearSeries(); st.angleTimes = []; st.idStats.clear(); pendingCmds.length = 0; st.latest = emptyLatest();
+  st.rec = { on: true, rows: [] }; frames.forEach(ingest); st.rec.on = false; recUI();
+  $("win").value = "0"; closeDrawer();
+  const b = $("banner"); b.classList.remove("hidden");
+  b.textContent = `파일 분석: ${f.name} — 프레임 ${frames.length.toLocaleString()}개, 각도 ${st.rec.rows.length.toLocaleString()}개. ` +
+    (st.rec.rows.length ? "설정 → ‘CSV 저장’으로 내보낼 수 있어요." : `데이터 ID(${fmtId(cfg.rxId)})와 맞는 각도 프레임이 없어요.`);
+  const back = document.createElement("button"); back.className = "btn sm"; back.textContent = "실시간으로 돌아가기"; back.onclick = () => setMode("live"); b.appendChild(back);
+};
+
+// ======================================================================
+// 그리기
+// ======================================================================
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+function fitCanvas(cv) {
+  const dpr = window.devicePixelRatio || 1, w = cv.clientWidth, h = cv.clientHeight;
+  if (cv.width !== Math.round(w * dpr) || cv.height !== Math.round(h * dpr)) { cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); }
+  const c = cv.getContext("2d"); c.setTransform(dpr, 0, 0, dpr, 0, 0); return [c, w, h];
+}
+function drawHorizon(roll, pitch) {
+  const [c, w, h] = fitCanvas($("cvHorizon")); c.clearRect(0, 0, w, h); if (w < 10 || h < 10) return;
+  const R = Math.min(w, h) / 2 - 8, cx = w / 2, cy = h / 2, ppd = R / 30, has = !isNaN(roll);
+  c.save(); c.beginPath(); c.arc(cx, cy, R, 0, Math.PI * 2); c.clip();
+  c.translate(cx, cy); c.rotate(has ? -roll * Math.PI / 180 : 0); c.translate(0, has ? pitch * ppd : 0);
+  c.fillStyle = "#1d4e7a"; c.fillRect(-2 * R, -4 * R, 4 * R, 4 * R); c.fillStyle = "#5a3d22"; c.fillRect(-2 * R, 0, 4 * R, 4 * R);
+  c.strokeStyle = "#fff"; c.lineWidth = 1.5; c.beginPath(); c.moveTo(-2 * R, 0); c.lineTo(2 * R, 0); c.stroke();
+  c.fillStyle = "#e6edf3"; c.font = "11px " + css("--mono"); c.textBaseline = "middle"; c.lineWidth = 1;
+  for (let d = -60; d <= 60; d += 5) { if (!d) continue; const y = -d * ppd, L = d % 10 ? R * .12 : R * .25; c.beginPath(); c.moveTo(-L, y); c.lineTo(L, y); c.stroke(); if (!(d % 10)) c.fillText(String(d), L + 4, y); }
+  c.restore();
+  c.strokeStyle = "#ffd33d"; c.lineWidth = 3; c.beginPath();
+  c.moveTo(cx - R * .55, cy); c.lineTo(cx - R * .15, cy); c.lineTo(cx - R * .08, cy + 8); c.moveTo(cx + R * .55, cy); c.lineTo(cx + R * .15, cy); c.lineTo(cx + R * .08, cy + 8); c.stroke();
+  c.strokeStyle = css("--line"); c.lineWidth = 2; c.beginPath(); c.arc(cx, cy, R, 0, Math.PI * 2); c.stroke();
+  if (has) { const t = (-roll - 90) * Math.PI / 180; c.fillStyle = css("--roll"); c.beginPath(); c.moveTo(cx + Math.cos(t) * (R - 2), cy + Math.sin(t) * (R - 2)); c.lineTo(cx + Math.cos(t + .07) * (R - 18), cy + Math.sin(t + .07) * (R - 18)); c.lineTo(cx + Math.cos(t - .07) * (R - 18), cy + Math.sin(t - .07) * (R - 18)); c.fill(); }
+  c.fillStyle = css("--mute"); c.font = "13px sans-serif"; c.textAlign = "left"; c.textBaseline = "top"; c.fillText("Roll / Pitch", 6, 4);
+  if (!has) { c.textAlign = "center"; c.fillText("데이터 없음", cx, cy + R * .4); }
+}
+function drawCompass(az) {
+  const [c, w, h] = fitCanvas($("cvCompass")); c.clearRect(0, 0, w, h); if (w < 10 || h < 10) return;
+  const R = Math.min(w, h) / 2 - 8, cx = w / 2, cy = h / 2;
+  c.fillStyle = css("--panel2"); c.beginPath(); c.arc(cx, cy, R, 0, Math.PI * 2); c.fill(); c.strokeStyle = css("--line"); c.lineWidth = 2; c.stroke();
+  c.strokeStyle = css("--mute"); c.fillStyle = css("--text"); c.font = "11px " + css("--mono"); c.textAlign = "center"; c.textBaseline = "middle";
+  for (let a = -180; a < 180; a += 10) { const t = (a - 90) * Math.PI / 180, l = a % 30 ? 5 : 10; c.lineWidth = a % 30 ? 1 : 1.5; c.beginPath(); c.moveTo(cx + Math.cos(t) * R, cy + Math.sin(t) * R); c.lineTo(cx + Math.cos(t) * (R - l), cy + Math.sin(t) * (R - l)); c.stroke(); if (!(a % 30)) c.fillText(String(a), cx + Math.cos(t) * (R - 22), cy + Math.sin(t) * (R - 22)); }
+  if (!isNaN(az)) { const t = (az - 90) * Math.PI / 180; c.strokeStyle = css("--az"); c.lineWidth = 5; c.lineCap = "round"; c.beginPath(); c.moveTo(cx, cy); c.lineTo(cx + Math.cos(t) * (R - 34), cy + Math.sin(t) * (R - 34)); c.stroke(); }
+  c.fillStyle = css("--text"); c.beginPath(); c.arc(cx, cy, 4, 0, Math.PI * 2); c.fill();
+  c.fillStyle = css("--mute"); c.font = "13px sans-serif"; c.textAlign = "left"; c.textBaseline = "top"; c.fillText("Azimuth", 6, 4);
+}
+function niceStep(range, n) { const raw = range / n, p = Math.pow(10, Math.floor(Math.log10(raw))), m = raw / p; return (m < 1.5 ? 1 : m < 3 ? 2 : m < 7 ? 5 : 10) * p; }
+function drawChart() {
+  const [c, w, h] = fitCanvas($("cvChart")); c.clearRect(0, 0, w, h); if (w < 50 || h < 50) return;
+  const s = series[st.group], n = s.t.length, padL = 48, padR = 8, padT = 24, padB = 22, W = w - padL - padR, H = h - padT - padB;
+  c.font = "12.5px sans-serif"; c.textBaseline = "middle"; let lx = padL;
+  s.names.forEach((nm, i) => { c.fillStyle = css(s.colors[i]); c.fillRect(lx, 9, 14, 4); c.fillStyle = css("--text"); c.textAlign = "left"; c.fillText(nm, lx + 18, 11); lx += c.measureText(nm).width + 38; });
+  c.fillStyle = css("--mute"); c.textAlign = "right"; c.fillText(s.unit, w - padR, 11);
+  if (!n) { c.fillStyle = css("--mute"); c.textAlign = "center"; c.font = "14px sans-serif"; c.fillText(st.group === "angle" ? "데이터 없음" : "데이터 없음 — 설정 → 센서 명령에서 출력 프레임을 켜세요", padL + W / 2, padT + H / 2); return; }
+  const win = +$("win").value * 1000;
+  const tEnd = st.mode === "file" || st.chartPaused ? s.t[n - 1] : Math.max(s.t[n - 1], Date.now() - 50), tStart = win ? tEnd - win : s.t[0];
+  let lo = 0, hi = n - 1; while (lo < hi) { const m = (lo + hi) >> 1; if (s.t[m] < tStart) lo = m + 1; else hi = m; } const i0 = Math.max(0, lo - 1);
+  let ymin = Infinity, ymax = -Infinity;
+  for (let k = 0; k < 3; k++) for (let i = i0; i < n; i++) { const v = s.v[k][i]; if (v < ymin) ymin = v; if (v > ymax) ymax = v; }
+  if (!isFinite(ymin)) return;
+  let span = ymax - ymin; const minSpan = st.group === "acc" ? 0.05 : 2;
+  if (span < minSpan) { const mid = (ymax + ymin) / 2; ymin = mid - minSpan / 2; ymax = mid + minSpan / 2; span = minSpan; }
+  ymin -= span * .08; ymax += span * .08;
+  const X = t => padL + (t - tStart) / (tEnd - tStart || 1) * W, Y = v => padT + (ymax - v) / (ymax - ymin) * H;
+  const ys = niceStep(ymax - ymin, 5); c.strokeStyle = css("--grid"); c.lineWidth = 1; c.fillStyle = css("--mute"); c.font = "11px " + css("--mono"); c.textAlign = "right";
+  for (let v = Math.ceil(ymin / ys) * ys; v <= ymax; v += ys) { const y = Math.round(Y(v)) + .5; c.beginPath(); c.moveTo(padL, y); c.lineTo(padL + W, y); c.stroke(); c.fillText(+v.toFixed(4) + "", padL - 5, y); }
+  const spanS = (tEnd - tStart) / 1000, xs = niceStep(spanS, 5) * 1000; c.textAlign = "center"; c.textBaseline = "top";
+  for (let t = Math.ceil(tStart / xs) * xs; t <= tEnd; t += xs) { const x = Math.round(X(t)) + .5; c.beginPath(); c.moveTo(x, padT); c.lineTo(x, padT + H); c.stroke(); const d = new Date(t); c.fillText(spanS > 120 ? hms(d) : hms(d).slice(3), x, padT + H + 5); }
+  if (ymin < 0 && ymax > 0) { c.strokeStyle = css("--zero"); c.beginPath(); c.moveTo(padL, Y(0)); c.lineTo(padL + W, Y(0)); c.stroke(); }
+  c.save(); c.beginPath(); c.rect(padL, padT, W, H); c.clip(); c.lineWidth = 2; c.lineJoin = "round";
+  const bucket = n - i0 > W * 2;
+  for (let k = 0; k < 3; k++) {
+    const v = s.v[k]; c.strokeStyle = css(s.colors[k]); c.beginPath();
+    const wrapK = st.group === "angle" && k === 2;
+    if (!bucket) { for (let i = i0; i < n; i++) { const x = X(s.t[i]), y = Y(v[i]); (i === i0 || (wrapK && Math.abs(v[i] - v[i - 1]) > 180)) ? c.moveTo(x, y) : c.lineTo(x, y); } }
+    else { let col = -1, mn = 0, mx = 0, first = true;
+      for (let i = i0; i < n; i++) { const px = Math.floor(X(s.t[i])); if (px !== col) { if (col >= 0) { if (first) { c.moveTo(col, Y(mn)); first = false; } else c.lineTo(col, Y(mn)); c.lineTo(col, Y(mx)); } col = px; mn = mx = v[i]; } else { if (v[i] < mn) mn = v[i]; if (v[i] > mx) mx = v[i]; } }
+      if (col >= 0) { c.lineTo(col, Y(mn)); c.lineTo(col, Y(mx)); } }
+    c.stroke();
+  }
+  c.restore();
+}
+
+// ======================================================================
+// 화면 조작
+// ======================================================================
+let curView = "vGraph";
+document.querySelectorAll("#tabs .tab").forEach(t => t.onclick = () => {
+  document.querySelectorAll("#tabs .tab").forEach(x => x.classList.remove("on")); t.classList.add("on");
+  ["vGraph", "vAtt", "vData"].forEach(v => $(v).classList.toggle("hidden", v !== t.dataset.v)); curView = t.dataset.v; store.set("view", curView);
+});
+(() => { const v = store.get("view", "vGraph"); const t = document.querySelector(`#tabs .tab[data-v="${v}"]`); if (t) t.click(); })();
+document.querySelectorAll("#gtabs .tab").forEach(t => t.onclick = () => { document.querySelectorAll("#gtabs .tab").forEach(x => x.classList.remove("on")); t.classList.add("on"); st.group = t.dataset.g; });
+$("bPause").onclick = () => { st.chartPaused = !st.chartPaused; $("bPause").textContent = st.chartPaused ? "재개" : "일시정지"; };
+$("bRawPause").onclick = () => { st.rawPaused = !st.rawPaused; $("bRawPause").textContent = st.rawPaused ? "재개" : "정지"; };
+$("idBody").addEventListener("click", e => {
+  const t = e.target.closest("[data-id]"); if (!t) return; const id = +t.dataset.id, ext = t.dataset.ext === "1";
+  $("dataId").value = fmtId(id, ext); if (ext) $("idMode").value = "ext"; applyCfg(); toast(`데이터 ID 를 ${fmtId(id, ext)} 로 지정했어요.`);
+});
+function openDrawer() { $("drawer").classList.add("open"); $("scrim").classList.remove("hidden"); }
+function closeDrawer() { $("drawer").classList.remove("open"); $("scrim").classList.add("hidden"); }
+$("bMenu").onclick = openDrawer; $("bClose").onclick = closeDrawer; $("scrim").onclick = closeDrawer;
+
+// ======================================================================
+// 화면 갱신
+// ======================================================================
+let lastSlow = 0;
+function render(now) {
+  const L = st.latest, nowMs = st.mode === "file" ? L.angleMs : Date.now();
+  const age = L.angleMs ? nowMs - L.angleMs : Infinity, stale = age > 1500 && st.mode === "live";
+  const hz = st.mode === "live" && st.angleTimes.length > 1 && !stale ? (st.angleTimes.length - 1) / ((st.angleTimes[st.angleTimes.length - 1] - st.angleTimes[0]) / 1000) : 0;
+  setPill("dData", "pData", !L.angleMs ? "" : stale ? "bad" : "ok", st.mode === "file" ? "파일 분석" : `${hz.toFixed(1)} Hz`);
+  const has = !isNaN(L.roll), roll = tR(L.roll), pitch = tP(L.pitch), az = tA(L.az);
+  $("vRoll").textContent = has ? fmtSigned(roll) : "--.--"; $("vPitch").textContent = has ? fmtSigned(pitch) : "--.--"; $("vAz").textContent = has ? fmtSigned(az) : "--.--";
+  $("sRoll").textContent = has ? `센서값 ${fmtSigned(L.roll)}°` : "센서값 -"; $("sPitch").textContent = has ? `센서값 ${fmtSigned(L.pitch)}°` : "센서값 -"; $("sAz").textContent = has ? `센서값 ${fmtSigned(L.az)}°` : "센서값 -";
+  const aR = +$("alR").value, aP = +$("alP").value;
+  $("cRoll").classList.toggle("alarm", has && aR > 0 && Math.abs(roll) > aR); $("cPitch").classList.toggle("alarm", has && aP > 0 && Math.abs(pitch) > aP);
+  ["cRoll", "cPitch", "cAz"].forEach(id => $(id).classList.toggle("stale", has && stale));
+  $("vTemp").textContent = has ? L.temp + " ℃" : "-";
+  $("vAcc").textContent = L.acc ? L.acc.map(v => v.toFixed(2)).join(" / ") : "꺼짐"; $("vGyro").textContent = L.gyro ? L.gyro.map(v => v.toFixed(1)).join(" / ") : "꺼짐";
+  $("tAge").textContent = !L.angleMs || st.mode === "file" ? "" : stale ? `${(age / 1000).toFixed(0)}초 전` : "수신 중";
+  if (curView === "vGraph") drawChart();
+  else if (curView === "vAtt") { drawHorizon(has ? roll : NaN, has ? pitch : NaN); drawCompass(has ? az : NaN); }
+  if (now - lastSlow > 300) {
+    lastSlow = now;
+    if (curView === "vData") {
+      if (!st.rawPaused) { let html = ""; for (let i = rawRows.length - 1; i >= Math.max(0, rawRows.length - 100); i--) { const { fr, r } = rawRows[i]; html += `<tr><td>${tstr(fr.ms)}</td><td>${fr.dir}</td><td>${fmtId(fr.id, fr.ext)}</td><td>${fr.d.length}</td><td>${fr.d.map(hex2).join(" ")}</td><td>${describe(r)}</td></tr>`; } $("rawBody").innerHTML = html; }
+      let ih = ""; for (const s of [...st.idStats.values()].sort((a, b) => a.id - b.id)) { const me = s.id === cfg.rxId; ih += `<tr><td><span class="idchip" data-id="${s.id}" data-ext="${s.ext ? 1 : 0}"${me ? ' style="color:var(--ok)"' : ""}>${fmtId(s.id, s.ext)}</span>${me ? " ◀" : ""}</td><td>${s.ext ? "29비트" : "11비트"}</td><td>${s.n}</td><td>${s.dt ? s.dt.toFixed(0) + " ms" : "-"}</td></tr>`; }
+      $("idBody").innerHTML = ih || '<tr><td colspan="4" style="color:var(--mute)">수신된 프레임 없음</td></tr>';
+      if (!ble.connected) $("cnt").textContent = `RX ${st.rx}`;
+    }
+    recUI();
+  }
+  requestAnimationFrame(render);
+}
+
+// ======================================================================
+// 시작
+// ======================================================================
+$("appInfo").textContent = `HDA446T 태블릿 모니터 v${APP_VERSION}` + (navigator.bluetooth ? " · 블루투스 사용 가능" : " · 블루투스 사용 불가(HTTPS·Chrome 필요)");
+bleUI();
+requestAnimationFrame(render);
+logEv("준비됨. ‘블루투스 연결’을 눌러 게이트웨이(HDA446T-GW-xxxx)를 선택하세요.");
+if (!navigator.bluetooth) toast(window.isSecureContext ? "이 브라우저는 블루투스를 지원하지 않아요. 안드로이드 Chrome으로 열어 주세요." : "블루투스는 HTTPS 주소에서 열어야 써요. (지금은 데모만 가능)", "e");
+window.addEventListener("beforeunload", e => { if (st.rec.on || (st.rec.rows.length && st.mode === "live")) { e.preventDefault(); e.returnValue = ""; } });
+if ("serviceWorker" in navigator && window.isSecureContext && location.protocol !== "file:") navigator.serviceWorker.register("sw.js").catch(() => {});
+</script>
+</body>
+</html>
